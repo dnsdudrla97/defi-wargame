@@ -4,6 +4,8 @@ pragma solidity ^0.6.0;
 import "@uniswap/v2-periphery/contracts/libraries/UniswapV2Library.sol";
 import "@uniswap/v2-periphery/contracts/libraries/SafeMath.sol";
 
+import "hardhat/console.sol";
+
 interface IERC20 {
     function transfer(address to, uint256 amount) external returns (bool);
     function transferFrom(address from, address to, uint256 amount) external returns (bool);
@@ -61,6 +63,7 @@ contract PuppetV2Pool {
     }
 
     function calculateDepositOfWETHRequired(uint256 tokenAmount) public view returns (uint256) {
+        console.log(_getOracleQuote(tokenAmount));
         return _getOracleQuote(tokenAmount).mul(3) / (10 ** 18);
     }
 
