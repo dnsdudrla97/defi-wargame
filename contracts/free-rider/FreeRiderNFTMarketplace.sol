@@ -52,7 +52,7 @@ contract FreeRiderNFTMarketplace is ReentrancyGuard {
             "Account offering must have approved transfer"
         );
 
-        offers[tokenId] = price;
+        offers[tokenId] = price; // offerS > tokenId check
 
         amountOfOffers++;
 
